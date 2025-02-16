@@ -1,7 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Document } from '../../types';
 import { api } from '../../services/api';
-import { SaveIcon, XIcon, EyeIcon, PencilIcon } from 'lucide-react';
+import { Save, X, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
 import MarkdownPreview from './MarkdownPreview';
 
 interface DocumentViewProps {
@@ -10,6 +23,7 @@ interface DocumentViewProps {
   folderId?: string;
   onDocumentCreated: (doc: Document) => void;
   onDocumentUpdated: (doc: Document) => void;
+  onDocumentDeleted: () => void;
   onCancel: () => void;
 }
 
@@ -19,12 +33,14 @@ export default function DocumentView({
   folderId,
   onDocumentCreated,
   onDocumentUpdated,
+  onDocumentDeleted,
   onCancel,
 }: DocumentViewProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isPreview, setIsPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     if (document) {
@@ -47,82 +63,120 @@ export default function DocumentView({
       }
     } catch (error) {
       console.error('Failed to save document:', error);
-      // You could add a toast notification here
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleDelete = async () => {
+    if (document) {
+      await api.deleteDocument(document.id);
+      onDocumentDeleted();
+      setShowDeleteDialog(false);
+    }
+  };
+
   if (!isCreating && !document) {
     return (
-      <div className="flex h-full items-center justify-center text-secondary-foreground">
-        Select a document or create a new one
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <p>Select a document or create a new one</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Your documents will appear here
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col p-4 gap-4">
-      <div className="flex items-center justify-between">
-        {isCreating ? (
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Document title"
-            className="flex-1 px-3 py-2 rounded-md border bg-background"
-          />
-        ) : (
-          <h1 className="text-xl font-semibold">{document?.title}</h1>
-        )}
-        <div className="flex gap-2">
-          <button
+    <div className="h-full flex flex-col p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex-1 max-w-xl">
+          {isCreating ? (
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Document title"
+              className="text-lg font-medium"
+            />
+          ) : (
+            <h1 className="text-xl font-semibold truncate">{document?.title}</h1>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {!isCreating && document && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setIsPreview(!isPreview)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md hover:bg-secondary"
           >
             {isPreview ? (
               <>
-                <PencilIcon className="h-4 w-4" /> Edit
+                <Pencil className="h-4 w-4 mr-2" /> Edit
               </>
             ) : (
               <>
-                <EyeIcon className="h-4 w-4" /> Preview
+                <Eye className="h-4 w-4 mr-2" /> Preview
               </>
             )}
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden rounded-md border">
         {isPreview ? (
-          <MarkdownPreview content={content} />
+          <div className="h-full overflow-auto bg-background p-4">
+            <MarkdownPreview content={content} />
+          </div>
         ) : (
-          <textarea
+          <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="Write your document content here..."
-            className="w-full h-full p-3 rounded-md border bg-background resize-none font-mono text-sm"
+            className="h-full resize-none font-mono border-0 focus-visible:ring-0"
           />
         )}
       </div>
 
-      <div className="flex justify-end gap-2">
-        <button
-          onClick={onCancel}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md hover:bg-secondary"
-          disabled={isSaving}
-        >
-          <XIcon className="h-4 w-4" /> Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          <SaveIcon className="h-4 w-4" />
+      <div className="flex justify-end gap-2 mt-4">
+        <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+          <X className="h-4 w-4 mr-2" /> Cancel
+        </Button>
+        <Button onClick={handleSave} disabled={isSaving}>
+          <Save className="h-4 w-4 mr-2" />
           {isSaving ? 'Saving...' : 'Save'}
-        </button>
+        </Button>
       </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{document?.title}"? This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 
